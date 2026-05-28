@@ -1,2 +1,0 @@
-# DrowsinessDetection-CourseProject
-
