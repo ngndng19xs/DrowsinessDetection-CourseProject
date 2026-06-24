@@ -1,6 +1,6 @@
 # 🚘 Hệ Thống Giám Sát và Cảnh Báo Lái Xe An Toàn (Driver Monitoring System - DMS)
 
-Dự án phát hiện trạng thái buồn ngủ (Drowsiness) và mất tập trung (Distraction) của tài xế theo thời gian thực sử dụng Computer Vision. Được nâng cấp với giao diện **Desktop Application (Tkinter)** chuyên nghiệp và **Hệ thống tự học ngưỡng (Threshold Tuning)**.
+Dự án phát hiện trạng thái buồn ngủ (Drowsiness) và mất tập trung (Distraction) của tài xế theo thời gian thực sử dụng Computer Vision. Được nâng cấp với giao diện **Desktop Application (Tkinter)** chuyên nghiệp, **Hệ thống tự học ngưỡng (Threshold Tuning)** và **Tích hợp các Mô hình Machine Learning (SVM, Random Forest, XGBoost)**.
 
 ## 🌟 Điểm Nổi Bật (Tính Khoa Học & Kỹ Thuật)
 
@@ -25,22 +25,30 @@ DrowsinessDetection/
 │       └── alarm.wav             # File âm thanh chuông báo động
 ├── data/
 │   ├── raw_videos/               # Dữ liệu video thô 5s (dành cho huấn luyện/đánh giá)
-│   └── merged_videos/            # Dữ liệu video đã ghép 15s
+│   ├── merged_videos/            # Dữ liệu video đã ghép 15s
+│   ├── train_features.csv        # Dữ liệu đặc trưng dùng để huấn luyện
+│   └── test_features.csv         # Dữ liệu đặc trưng dùng để kiểm thử
 ├── src/
 │   ├── config/
-│   │   └── settings.py           # Quản lý tập trung các hằng số và ngưỡng sinh trắc (EAR, MAR, Pose)
+│   │   └── settings.py           # Quản lý tập trung các hằng số và ngưỡng sinh trắc
+│   ├── models/                   # Chứa các script huấn luyện, mô hình học máy và kết quả
+│   │   ├── train_svm.py          # Script huấn luyện mô hình SVM
+│   │   ├── train_rf.py           # Script huấn luyện Random Forest
+│   │   ├── train_xgboost.py      # Script huấn luyện XGBoost
+│   │   ├── extract_features_from_videos.py # Trích xuất đặc trưng từ video
+│   │   ├── evaluate_svm_pipeline.py        # Đánh giá pipeline
+│   │   └── evaluation_results/   # Các biểu đồ so sánh và đánh giá mô hình
 │   ├── threads/
 │   │   ├── camera_thread.py      # Luồng I/O (Đọc ảnh liên tục từ Webcam/Video file)
-│   │   ├── ai_thread.py          # Luồng CPU (Chạy MediaPipe FaceMesh & Logic nhận diện)
+│   │   ├── ai_thread.py          # Luồng CPU (Chạy MediaPipe & Model Dự đoán)
 │   │   └── alert_thread.py       # Luồng I/O (Chờ tín hiệu để phát âm thanh chuông báo)
 │   ├── ui/
 │   │   └── main_window.py        # Mã nguồn giao diện Desktop App bằng Tkinter & Pillow
 │   └── utils/
-│       ├── geometry.py           # Chứa thuật toán khoảng cách Euclidean tính EAR và MAR
-│       ├── pose.py               # Thuật toán solvePnP và giải mã Euler tính góc xoay đầu
+│       ├── geometry.py           # Chứa thuật toán tính EAR và MAR
+│       ├── pose.py               # Thuật toán tính góc xoay đầu
 │       ├── preprocessing.py      # Xử lý thiếu sáng ban đêm (thuật toán CLAHE)
 │       └── threshold_tuning.py   # Script tự động học và phân tích ngưỡng từ dữ liệu video
-├── threshold_features15s.csv     # Bảng dữ liệu thô (được xuất ra sau khi chạy Tuning)
 ├── requirements.txt              # Danh sách toàn bộ thư viện Python (Dependencies)
 ├── README.md                     # File hướng dẫn sử dụng (Tài liệu dự án)
 └── main.py                       # File khởi chạy ứng dụng DMS (Entry Point)
@@ -53,8 +61,8 @@ DrowsinessDetection/
 1. **Clone dự án về máy:**
 
 ```bash
-git clone https://github.com/vonguyenkiet/DrowsinessDetection.git
-cd DrowsinessDetection
+git clone https://github.com/ngndng19xs/DrowsinessDetection-CourseProject.git
+cd DrowsinessDetection-CourseProject
 ```
 
 2. **Cài đặt thư viện:**
@@ -88,6 +96,14 @@ python main.py
 - **Tự học và Tinh chỉnh Ngưỡng (Threshold Tuning):** Phân tích hàng ngàn video để tìm ra ngưỡng EAR, MAR tối ưu và tự động cập nhật vào `settings.py`. Đồng thời xuất dữ liệu thô ra file CSV.
   ```bash
   python -m src.utils.threshold_tuning
+  ```
+- **Trích xuất Đặc trưng và Huấn luyện Mô hình Machine Learning:**
+  Bạn có thể tự trích xuất đặc trưng từ dữ liệu video và tiến hành huấn luyện/đánh giá các mô hình học máy tiên tiến (SVM, Random Forest, XGBoost):
+  ```bash
+  python src/models/extract_features_from_videos.py
+  python src/models/train_svm.py
+  python src/models/train_rf.py
+  python src/models/train_xgboost.py
   ```
 
 ## 📝 Dành Cho Đồ Án Sinh Viên
