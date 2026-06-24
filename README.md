@@ -2,7 +2,7 @@
 
 Dự án phát hiện trạng thái buồn ngủ (Drowsiness) và mất tập trung (Distraction) của tài xế theo thời gian thực sử dụng Computer Vision. Được nâng cấp với giao diện **Desktop Application (Tkinter)** chuyên nghiệp, **Hệ thống tự học ngưỡng (Threshold Tuning)** và **Tích hợp các Mô hình Machine Learning (SVM, Random Forest, XGBoost)**.
 
-## 🌟 Điểm Nổi Bật (Tính Khoa Học & Kỹ Thuật)
+## Điểm Nổi Bật (Tính Khoa Học & Kỹ Thuật)
 
 Dự án được thiết kế chuẩn mực như một phần mềm công nghiệp thu nhỏ:
 
@@ -16,7 +16,7 @@ Dự án được thiết kế chuẩn mực như một phần mềm công nghi�
 - **Tự động tinh chỉnh ngưỡng (Data-Driven Tuning):** Cung cấp công cụ tự động phân tích hàng ngàn video để tìm ra bộ ngưỡng sinh trắc học cá nhân hóa cho từng tài xế (Threshold Tuning) bằng phương pháp thống kê (Phân vị thứ 10).
 - **Xử lý thiếu sáng (CLAHE):** Tự động áp dụng cân bằng Histogram trên không gian màu LAB khi phát hiện môi trường ánh sáng yếu.
 
-## 📂 Cấu Trúc Thư Mục Chi Tiết
+## Cấu Trúc Thư Mục Chi Tiết
 
 ```text
 DrowsinessDetection/
@@ -54,7 +54,7 @@ DrowsinessDetection/
 └── main.py                       # File khởi chạy ứng dụng DMS (Entry Point)
 ```
 
-## ⚙️ Cài Đặt (Installation)
+## Cài Đặt (Installation)
 
 **Yêu cầu:** Khuyến nghị sử dụng **Miniconda** hoặc **Anaconda** (Python 3.8 - 3.11).
 
@@ -74,7 +74,7 @@ pip install -r requirements.txt
 
 _Các thư viện chính bao gồm: `opencv-python` (Xử lý ảnh), `mediapipe` (AI Landmarks), `pygame` (Âm thanh), `Pillow` (Giao diện Tkinter), `numpy`, `moviepy` & `tqdm` (Cắt ghép video)._
 
-## 🚀 Hướng Dẫn Sử Dụng
+## Hướng Dẫn Sử Dụng
 
 ### 1. Khởi chạy Ứng dụng Giám sát (DMS App)
 
