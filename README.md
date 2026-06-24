@@ -105,7 +105,3 @@ python main.py
   python src/models/train_rf.py
   python src/models/train_xgboost.py
   ```
-
-## 📝 Dành Cho Đồ Án Sinh Viên
-
-Dự án được tối ưu rất sâu về mặt học thuật. Toàn bộ mã nguồn đã được gắn các **khối Docstring giải thích lý thuyết chi tiết** (Lý do chọn kiến trúc One-Stage, giải pháp Gimbal Lock, tính chất Scale Invariance của EAR/MAR, MLOps configuration...).
