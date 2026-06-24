@@ -65,8 +65,8 @@ def train_rf():
     print("\n[2/4] Khoi tao mo hinh Random Forest...")
     model = RandomForestClassifier(
         n_estimators=200,       # Số cây quyết định
-        max_depth=12,           # Độ sâu tối đa
-        min_samples_split=4,    # Số mẫu tối thiểu để tách nút
+        max_depth=3,            # Độ sâu tối đa (Giảm từ 12 -> 3 để chống Overfitting)
+        min_samples_split=10,   # Số mẫu tối thiểu để tách nút
         min_samples_leaf=2,     # Số mẫu tối thiểu tại lá
         class_weight="balanced",# Cân bằng dữ liệu không đều
         random_state=42,

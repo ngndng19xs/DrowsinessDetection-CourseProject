@@ -41,6 +41,10 @@ class CameraThread(threading.Thread):
                 self.new_source = None
                 
             ret, frame = self.cap.read()
+            # Lật khung hình theo chiều ngang (hiệu ứng gương) nếu đang dùng webcam
+            if ret and (self.source == 0 or str(self.source) == '0'):
+                frame = cv2.flip(frame, 1)
+                
             if not ret:
                 # Nếu đọc hết file video (trong quá trình test), lặp lại từ đầu
                 if isinstance(self.source, str):

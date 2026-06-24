@@ -21,11 +21,16 @@ Label mapping:
 
 Cách chạy:
     python src/models/extract_features_from_videos.py
+
+Lưu ý:
+    Tương thích với MediaPipe >= 0.10.x (Tasks API)
+    Cần file model: models/face_landmarker.task (tự động tải về nếu chưa có)
 """
 
 import os
 import sys
 import csv
+import urllib.request
 import warnings
 import numpy as np
 import cv2
@@ -46,6 +51,8 @@ warnings.filterwarnings("ignore")
 
 try:
     import mediapipe as mp
+    from mediapipe.tasks import python as mp_python
+    from mediapipe.tasks.python import vision as mp_vision
     MP_AVAILABLE = True
 except ImportError:
     MP_AVAILABLE = False
@@ -64,8 +71,15 @@ TEST_DIR   = os.path.join(DATA_DIR, "test")
 TRAIN_CSV  = os.path.join(DATA_DIR, "train_features.csv")
 TEST_CSV   = os.path.join(DATA_DIR, "test_features.csv")
 
+# Đường dẫn file model MediaPipe FaceLandmarker
+MODEL_DIR  = os.path.join(ROOT_DIR, "src", "models")
+MODEL_PATH = os.path.join(MODEL_DIR, "face_landmarker.task")
+MODEL_URL  = (
+    "https://storage.googleapis.com/mediapipe-models/"
+    "face_landmarker/face_landmarker/float16/1/face_landmarker.task"
+)
+
 NUM_FRAMES = 15          # Số frame liên tiếp dùng làm 1 mẫu
-SKIP_FRAME = 2           # Lấy cách mỗi N frame để tránh dư thừa
 
 LABEL_MAP = {
     "Normal":     0,
@@ -80,12 +94,58 @@ MOUTH_IDX     = [61, 40, 37, 0, 267, 270, 291, 321]
 
 
 # ══════════════════════════════════════════════════════════════════
-#  KHỞI TẠO MEDIAPIPE
+#  TẢI MODEL NẾU CHƯA CÓ
 # ══════════════════════════════════════════════════════════════════
-mp_face_mesh = mp.solutions.face_mesh
+def ensure_model():
+    """Tải file model face_landmarker.task nếu chưa tồn tại."""
+    if os.path.exists(MODEL_PATH):
+        print(f"  [OK] Model da ton tai: {MODEL_PATH}")
+        return True
+
+    print(f"  [TAI] Dang tai model tu: {MODEL_URL}")
+    print(f"        Luu vao: {MODEL_PATH}")
+    os.makedirs(MODEL_DIR, exist_ok=True)
+
+    try:
+        def show_progress(block_num, block_size, total_size):
+            downloaded = block_num * block_size
+            if total_size > 0:
+                pct = min(100, downloaded * 100 // total_size)
+                mb  = downloaded / 1024 / 1024
+                print(f"\r        {pct:3d}% ({mb:.1f} MB)", end="", flush=True)
+
+        urllib.request.urlretrieve(MODEL_URL, MODEL_PATH, show_progress)
+        print(f"\n  [OK] Tai model thanh cong!")
+        return True
+    except Exception as e:
+        print(f"\n  [LOI] Khong the tai model: {e}")
+        print("        Hay tai thu cong tu:")
+        print(f"        {MODEL_URL}")
+        print(f"        Va luu vao: {MODEL_PATH}")
+        return False
 
 
-def extract_features_from_video(video_path: str, face_mesh) -> list[float] | None:
+# ══════════════════════════════════════════════════════════════════
+#  TẠO FACE LANDMARKER (Tasks API cho MediaPipe >= 0.10)
+# ══════════════════════════════════════════════════════════════════
+def create_face_landmarker():
+    """Khởi tạo FaceLandmarker dùng MediaPipe Tasks API."""
+    base_options = mp_python.BaseOptions(model_asset_path=MODEL_PATH)
+    options = mp_vision.FaceLandmarkerOptions(
+        base_options=base_options,
+        num_faces=1,
+        min_face_detection_confidence=0.5,
+        min_face_presence_confidence=0.5,
+        min_tracking_confidence=0.5,
+        running_mode=mp_vision.RunningMode.IMAGE,
+    )
+    return mp_vision.FaceLandmarker.create_from_options(options)
+
+
+# ══════════════════════════════════════════════════════════════════
+#  TRÍCH XUẤT FEATURES TỪ MỘT VIDEO
+# ══════════════════════════════════════════════════════════════════
+def extract_features_from_video(video_path: str, landmarker) -> list[float] | None:
     """
     Trích xuất 60 features từ một file video.
 
@@ -128,12 +188,17 @@ def extract_features_from_video(video_path: str, face_mesh) -> list[float] | Non
 
         h, w = frame.shape[:2]
         rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        results = face_mesh.process(rgb)
 
-        if not results.multi_face_landmarks:
+        # Tạo MediaPipe Image từ numpy array
+        mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb)
+
+        # Phát hiện landmarks
+        result = landmarker.detect(mp_image)
+
+        if not result.face_landmarks or len(result.face_landmarks) == 0:
             continue
 
-        lms = results.multi_face_landmarks[0].landmark
+        lms = result.face_landmarks[0]  # list of NormalizedLandmark
 
         # EAR (trung bình 2 mắt)
         left_eye  = [lms[i] for i in LEFT_EYE_IDX]
@@ -172,6 +237,9 @@ def extract_features_from_video(video_path: str, face_mesh) -> list[float] | Non
     return feature_vector
 
 
+# ══════════════════════════════════════════════════════════════════
+#  XỬ LÝ TOÀN BỘ MỘT TẬP (TRAIN HOẶC TEST)
+# ══════════════════════════════════════════════════════════════════
 def process_split(split_dir: str, output_csv: str, split_name: str) -> int:
     """
     Xử lý toàn bộ một tập (train hoặc test):
@@ -198,14 +266,10 @@ def process_split(split_dir: str, output_csv: str, split_name: str) -> int:
         ["label"]
     )
 
-    with mp_face_mesh.FaceMesh(
-        static_image_mode=False,
-        max_num_faces=1,
-        refine_landmarks=False,
-        min_detection_confidence=0.5,
-        min_tracking_confidence=0.5,
-    ) as face_mesh:
+    # Tạo landmarker một lần dùng cho cả tập
+    landmarker = create_face_landmarker()
 
+    try:
         for class_name, label_id in LABEL_MAP.items():
             class_dir = os.path.join(split_dir, class_name)
             if not os.path.isdir(class_dir):
@@ -216,11 +280,11 @@ def process_split(split_dir: str, output_csv: str, split_name: str) -> int:
                 f for f in os.listdir(class_dir)
                 if f.lower().endswith((".mp4", ".avi", ".mov"))
             ])
-            print(f"\n  [{class_name}] ({label_id}) - {len(video_files)} video")
+            print(f"\n  [{class_name}] (label={label_id}) - {len(video_files)} video")
 
             for i, vfile in enumerate(video_files, 1):
                 vpath = os.path.join(class_dir, vfile)
-                feats = extract_features_from_video(vpath, face_mesh)
+                feats = extract_features_from_video(vpath, landmarker)
 
                 if feats is not None:
                     rows.append(feats + [label_id])
@@ -231,9 +295,11 @@ def process_split(split_dir: str, output_csv: str, split_name: str) -> int:
                     total_err += 1
                     if total_err <= 5:
                         print(f"    [SKIP] Khong trich xuat duoc: {vfile}")
+    finally:
+        landmarker.close()
 
     # Ghi CSV
-    os.makedirs(os.path.dirname(output_csv), exist_ok=True)
+    os.makedirs(os.path.dirname(output_csv) if os.path.dirname(output_csv) else ".", exist_ok=True)
     with open(output_csv, "w", newline="", encoding="utf-8") as f:
         writer = csv.writer(f)
         writer.writerow(feature_names)
@@ -250,10 +316,15 @@ def process_split(split_dir: str, output_csv: str, split_name: str) -> int:
 def main():
     print("=" * 60)
     print("  TRICH XUAT DAC TRUNG TU VIDEO THUC TE")
-    print("  (EAR, MAR, Pitch, Yaw) × 15 frames → 60 features")
+    print("  (EAR, MAR, Pitch, Yaw) x 15 frames -> 60 features")
+    print("  Su dung MediaPipe Tasks API (>= 0.10.x)")
     print("=" * 60)
     print(f"  Thu muc du lieu: {DATA_DIR}")
     print(f"  So frame / mau : {NUM_FRAMES}")
+
+    # Đảm bảo có model file
+    if not ensure_model():
+        sys.exit(1)
 
     # Xử lý tập Train
     n_train = process_split(TRAIN_DIR, TRAIN_CSV, "train")

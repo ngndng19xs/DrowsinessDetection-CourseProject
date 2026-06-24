@@ -64,19 +64,18 @@ def train_svm():
         print(f"       Lop {lbl} ({CLASS_NAMES[lbl]}): {cnt} mau")
 
     # ── 2. Xây dựng Pipeline ──────────────────────────────────────
-    print("\n[2/4] Xay dung Pipeline (StandardScaler → SVC kernel RBF)...")
+    print("\n[2/4] Xay dung Pipeline (StandardScaler → SVC kernel Linear)...")
     svm_pipeline = Pipeline([
         ("scaler", StandardScaler()),
         ("svm", SVC(
-            kernel="rbf",
-            C=10.0,
-            gamma="scale",
+            kernel="linear",
+            C=0.1,
             probability=True,
             random_state=42,
             class_weight="balanced",    # Cân bằng class không đều
         )),
     ])
-    print(f"       SVC: kernel=rbf, C=10.0, gamma=scale, class_weight=balanced")
+    print(f"       SVC: kernel=linear, C=0.1, class_weight=balanced")
 
     # ── 3. Huấn luyện ─────────────────────────────────────────────
     print("\n[3/4] Dang huan luyen SVM (co the mat vai phut)...")

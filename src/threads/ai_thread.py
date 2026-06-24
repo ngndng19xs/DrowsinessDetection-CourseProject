@@ -18,7 +18,7 @@ from src.utils.preprocessing import preprocess_frame
 class AIThread(threading.Thread):
     """
     Luồng AI đảm nhận tính toán nặng nhất của hệ thống: Phát hiện khuôn mặt và đánh giá chỉ số sinh trắc.
-    Sử dụng Sliding Temporal Window 4x15 kết hợp Random Forest Classifier.
+    Sử dụng Sliding Temporal Window 4x15 kết hợp SVM Classifier.
     """
     def __init__(self, frame_queue, result_queue, shared_state, stop_event):
         super().__init__()
@@ -44,15 +44,21 @@ class AIThread(threading.Thread):
         self.consecutive_drowsy = 0
         self.DROWSY_CONSECUTIVE_TH = 15
         
-        # Tải mô hình Random Forest
+        # Calibration Variables
+        self.yaw_baseline = 0.0
+        self.pitch_baseline = 0.0
+        self.calibration_frames = 0
+        self.MAX_CALIBRATION_FRAMES = 50
+        
+        # Tải mô hình SVM (Tốt nhất hiện tại)
         self.model = None
-        model_path = os.path.join(os.path.dirname(__file__), '..', 'models', 'rf_model.pkl')
+        model_path = os.path.join(os.path.dirname(__file__), '..', 'models', 'svm_model.pkl')
         if os.path.exists(model_path):
             with open(model_path, 'rb') as f:
                 self.model = pickle.load(f)
-            print("[INFO] Đã tải mô hình Random Forest thành công.")
+            print("[INFO] Đã tải mô hình SVM thành công.")
         else:
-            print("[WARNING] Không tìm thấy mô hình rf_model.pkl. Sẽ dùng Logic Ngưỡng Tạm Thời!")
+            print("[WARNING] Không tìm thấy mô hình svm_model.pkl. Sẽ dùng Logic Ngưỡng Tạm Thời!")
 
     def run(self):
         while not self.stop_event.is_set():
@@ -88,35 +94,58 @@ class AIThread(threading.Thread):
                 mar = calculate_mar([landmarks[i] for i in mouth_indices], w, h)
                 
                 # Pose
-                pitch, yaw, _ = get_head_pose(landmarks, w, h)
+                raw_pitch, raw_yaw, _ = get_head_pose(landmarks, w, h)
+                
+                # Calibration Logic
+                if self.calibration_frames < self.MAX_CALIBRATION_FRAMES:
+                    self.yaw_baseline += raw_yaw
+                    self.pitch_baseline += raw_pitch
+                    self.calibration_frames += 1
+                    
+                    if self.calibration_frames == self.MAX_CALIBRATION_FRAMES:
+                        self.yaw_baseline /= self.MAX_CALIBRATION_FRAMES
+                        self.pitch_baseline /= self.MAX_CALIBRATION_FRAMES
+                        print(f"[INFO] Calibration hoàn tất. Baseline Yaw: {self.yaw_baseline:.1f}, Pitch: {self.pitch_baseline:.1f}")
+                    
+                    # Trong lúc calibrate, tạm coi pitch và yaw là 0.0
+                    pitch = 0.0
+                    yaw = 0.0
+                else:
+                    # Đã calibrate xong, tính độ lệch thực tế
+                    pitch = raw_pitch - self.pitch_baseline
+                    yaw = raw_yaw - self.yaw_baseline
                 
                 # Đẩy vào cửa sổ trượt (Sliding Window)
                 self.sliding_window.append((ear, mar, pitch, yaw))
                 
                 # Đợi đủ 15 frames để bắt đầu phân loại
                 if len(self.sliding_window) == 15:
-                    if self.model is not None:
-                        # Rút trích theo đúng thứ tự lúc train: [ear_15, mar_15, pitch_15, yaw_15]
-                        ears = [item[0] for item in self.sliding_window]
-                        mars = [item[1] for item in self.sliding_window]
-                        pitches = [item[2] for item in self.sliding_window]
-                        yaws = [item[3] for item in self.sliding_window]
-                        
-                        features = np.concatenate([ears, mars, pitches, yaws]).reshape(1, -1)
-                        pred = self.model.predict(features)[0]
-                        # 0: Normal, 1: Drowsy, 2: Distracted
-                        if pred == 1:
-                            raw_state = "Drowsy"
-                        elif pred == 2:
-                            raw_state = "Distracted"
-                        else:
-                            raw_state = "Normal"
+                    # Hybrid Logic: Ưu tiên Threshold kết hợp Model AI để xử lý lỗi của Model.
+                    # 1. Khi cúi/ngẩng hoặc quay đầu, mắt/miệng bị biến dạng trên camera 2D, EAR/MAR mất chính xác. 
+                    # Do đó, phải ưu tiên kiểm tra tư thế đầu (Distracted) trước.
+                    if abs(yaw) > YAW_THRESHOLD or abs(pitch) > PITCH_THRESHOLD:
+                        raw_state = "Distracted"
+                    # 2. Nếu không sai tư thế, kiểm tra các ngưỡng sinh trắc rõ ràng (Nhắm mắt/Ngáp)
+                    elif ear < EAR_THRESHOLD or mar > MAR_THRESHOLD:
+                        raw_state = "Drowsy"
+                    # 3. Nếu chưa vượt ngưỡng rõ ràng, dùng AI model để phát hiện vi dấu hiệu
                     else:
-                        # Fallback threshold logic
-                        if ear < EAR_THRESHOLD or mar > MAR_THRESHOLD:
-                            raw_state = "Drowsy"
-                        elif abs(yaw) > YAW_THRESHOLD or abs(pitch) > PITCH_THRESHOLD:
-                            raw_state = "Distracted"
+                        if self.model is not None:
+                            # Rút trích đặc trưng
+                            ears = [item[0] for item in self.sliding_window]
+                            mars = [item[1] for item in self.sliding_window]
+                            pitches = [item[2] for item in self.sliding_window]
+                            yaws = [item[3] for item in self.sliding_window]
+                            
+                            features = np.concatenate([ears, mars, pitches, yaws]).reshape(1, -1)
+                            pred = self.model.predict(features)[0]
+                            
+                            if pred == 1:
+                                raw_state = "Drowsy"
+                            elif pred == 2:
+                                raw_state = "Distracted"
+                            else:
+                                raw_state = "Normal"
                         else:
                             raw_state = "Normal"
                     

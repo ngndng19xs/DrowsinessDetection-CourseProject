@@ -79,10 +79,11 @@ def train_xgboost():
     print("\n[3/5] Khoi tao mo hinh XGBoost (da lop - softmax)...")
     xgb_model = XGBClassifier(
         n_estimators=300,
-        max_depth=6,
-        learning_rate=0.1,
-        subsample=0.8,
-        colsample_bytree=0.8,
+        max_depth=2,          # Giảm từ 6 -> 2
+        learning_rate=0.01,   # Giảm từ 0.1 -> 0.01
+        reg_lambda=1,         # Thêm L2 regularization
+        subsample=0.7,
+        colsample_bytree=0.7,
         objective="multi:softprob",
         num_class=3,
         eval_metric="mlogloss",
